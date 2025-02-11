@@ -129,6 +129,30 @@ exports.updateEmployeeById = async (req, res) => {
     res.status(500).json({ message: "Server error!" });
   }
 };
+// Delete an Employee by ID
+exports.deleteEmployeeById = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const employee = await Employee.findById(id);
+    if (!employee) {
+      return res.status(404).json({ message: "Employee not found!" });
+    }
+
+    // If the employee has an image, delete it from Cloudinary
+    if (employee.image) {
+      const imagePublicId = employee.image.split("/").pop().split(".")[0]; // Extract public ID
+      await cloudinary.uploader.destroy(imagePublicId);
+    }
+
+    await Employee.findByIdAndDelete(id); // Delete employee from database
+
+    res.status(200).json({ message: "Employee deleted successfully!" });
+  } catch (err) {
+    console.error("Error deleting employee: ", err);
+    res.status(500).json({ message: "Server error!" });
+  }
+};
 
 // Authenticate Employee
 exports.loginEmployee = async (req, res) => {

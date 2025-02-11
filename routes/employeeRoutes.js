@@ -34,5 +34,5 @@ router.get("/employees", employeeController.getAllEmployees);
 
 // GET route to fetch a specific employee by ID
 router.get("/employees/:id", employeeController.getEmployeeById);
-
+router.delete("/delete/:id",employeeController.deleteEmployeeById)
 module.exports = router;

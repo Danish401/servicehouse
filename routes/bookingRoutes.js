@@ -7,7 +7,7 @@ const {
   cancelBooking,
   getBookingById,
   getAllBookings,
-  updateBooking,updateBookingStatus
+  updateBooking,updateBookingStatus,invoice,
 } = require("../controllers/bookingController");
 
 // POST: Create a booking
@@ -29,5 +29,7 @@ router.get("/", getAllBookings);
 
 // PATCH: Cancel a booking
 router.patch("/cancel/:bookingId", cancelBooking);
+router.get("/download-receipt/:bookingId",invoice);
+
 
 module.exports = router;
