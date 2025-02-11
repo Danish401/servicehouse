@@ -231,7 +231,6 @@ const io = new Server(server, {
   },
 });
 
-});
 mongoose
   .connect(process.env.MONGO_URI, {})
   .then(() => {
