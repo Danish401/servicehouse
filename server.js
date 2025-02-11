@@ -224,8 +224,8 @@ const io = new Server(server, {
   cors: {
     origin: [
       "http://localhost:5173",
-      "https://houseservices.netlify.app"
-      "https://67ab9e9fed926fbf98bdc4a4--houseservices.netlify.app", // Netlify preview
+      "https://houseservices.netlify.app",
+      "https://67ab9e9fed926fbf98bdc4a4--houseservices.netlify.app",
     ],
     methods: ["GET", "POST"],
     credentials: true,
@@ -245,7 +245,7 @@ const FRONTEND_URL = process.env.FRONTEND_URL;
 const allowedOrigins = [
   "http://localhost:5173",
   "https://67ab9e9fed926fbf98bdc4a4--houseservices.netlify.app",
-     "https://houseservices.netlify.app"
+   "https://houseservices.netlify.app"
   ];
 
 app.use(
