@@ -222,7 +222,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173", // Allow frontend domain
+    origin: "http://localhost:5173", "https://67ab9e9fed926fbf98bdc4a4--houseservices.netlify.app"// Allow frontend domain
     methods: ["GET", "POST"],
   },
 });
@@ -238,7 +238,7 @@ const FRONTEND_URL = process.env.FRONTEND_URL;
 // Middleware
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://scintillating-strudel-82b877.netlify.app",
+  "https://67ab9e9fed926fbf98bdc4a4--houseservices.netlify.app",
 ];
 
 app.use(
