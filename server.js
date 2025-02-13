@@ -230,6 +230,7 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
     credentials: true,
   },
+   allowEIO3: true, // ✅ Allows older Socket.IO versions
 });
 
 mongoose
