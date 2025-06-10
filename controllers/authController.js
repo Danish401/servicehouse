@@ -564,6 +564,9 @@ exports.getUserById = async (req, res) => {
         address1: user.address1,
         address2: user.address2,
         image: user.image,
+         isPremium: user.isPremium,
+        premiumPlan: user.premiumPlan,
+        premiumExpiry: user.premiumExpiry,
       },
     });
   } catch (err) {
