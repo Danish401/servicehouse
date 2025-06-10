@@ -218,7 +218,7 @@ const OAuth2Strategy = require("passport-google-oauth2").Strategy;
 const User = require("./models/User");
 const app = express();
 const server = http.createServer(app);
-
+require("./expireCheck");
 
 const io = new Server(server, {
   cors: {
