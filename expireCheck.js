@@ -1,6 +1,6 @@
 const cron = require('node-cron');
-const User = require('../models/User');
-const sendMail = require('../utils/sendMail');
+const User = require("./models/User");
+const sendMail = require('./sendMail');
 
 cron.schedule('0 0 * * *', async () => {
   const now = new Date();
