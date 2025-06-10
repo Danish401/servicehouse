@@ -202,14 +202,14 @@ const multer = require("multer");
 const employeeRoutes = require("./routes/employeeRoutes");
 const bookingRoutes = require("./routes/bookingRoutes");
 const cloudinary = require("cloudinary").v2; // Import Cloudinary
-const paymentRoutes = require("./routes/paymentRoutes");
+
 const MongoStore = require("connect-mongo");
 const http = require("http");
 const { Server } = require("socket.io");
 const chatRoutes = require("./routes/chatRoutes");
 const Chat = require("./models/Chat");
 require("dotenv").config();
-
+const paymentRoutes = require("./routes/payment");
 const authRoutes = require("./routes/auth");
 const passwordRoutes = require("./routes/password");
 const googleRoutes = require("./routes/google");
