@@ -11,6 +11,9 @@ const UserSchema = new mongoose.Schema({
   address2: { type: String },
   image: { type: String }, // Added field for image upload
   role: { type: String, enum: ["user", "admin"], default: "user" }, // Role field with default "user"
+    isPremium: { type: Boolean, default: false },
+  premiumPlan: { type: String, default: null },
+  premiumExpiry: { type: Date, default: null },
 });
 
 UserSchema.methods.comparePassword = async function (password) {
