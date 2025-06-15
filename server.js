@@ -216,6 +216,7 @@ const googleRoutes = require("./routes/google");
 const passport = require("passport");
 const OAuth2Strategy = require("passport-google-oauth2").Strategy;
 const User = require("./models/User");
+const chatRoutess = require("./routes/chat");
 const app = express();
 const server = http.createServer(app);
 require("./expireCheck");
@@ -401,7 +402,7 @@ app.use("/api", passwordRoutes);
 app.use("/api/employees", employeeRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/payment", paymentRoutes);
-
+app.use("/api", chatRoutess);
 const activeUsers = {};
 const typingUsers = {};
 
