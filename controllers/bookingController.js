@@ -208,11 +208,53 @@ exports.createBooking = async (req, res) => {
         .json({ message: "Rating value must be between 1 and 5" });
     }
 
+    // Check for booking conflicts - same employee, date, and time
+    // Only check for active bookings (Pending or Accepted status)
+    // Normalize the incoming date to start of day in UTC to match stored dates
+    const bookingDate = new Date(date);
+    const year = bookingDate.getUTCFullYear();
+    const month = bookingDate.getUTCMonth();
+    const day = bookingDate.getUTCDate();
+    
+    const startOfDay = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+    const endOfDay = new Date(Date.UTC(year, month, day, 23, 59, 59, 999));
+    
+    console.log(`[createBooking] Checking for conflicts: employee=${employee}, date=${date}, time=${time}`);
+    console.log(`[createBooking] Date range: ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`);
+    
+    const existingBooking = await Booking.findOne({
+      employee: employee,
+      date: {
+        $gte: startOfDay,
+        $lte: endOfDay
+      },
+      time: time,
+      status: { $in: ["Pending", "Accepted"] }
+    });
+
+    if (existingBooking) {
+      console.log(`[createBooking] Conflict found: Existing booking at ${existingBooking.date} ${existingBooking.time}`);
+      return res.status(409).json({ 
+        message: "This time slot is already booked. Please choose another time.",
+        conflict: true,
+        existingBooking: {
+          date: existingBooking.date,
+          time: existingBooking.time,
+          status: existingBooking.status
+        }
+      });
+    }
+    
+    console.log(`[createBooking] No conflict found, proceeding with booking creation`);
+
+    // Use the already normalized date (startOfDay) for storing the booking
+    const normalizedDate = startOfDay;
+
     // Create a new booking
     const booking = new Booking({
       employee,
       customer,
-      date,
+      date: normalizedDate,
       time,
       address,
       notes,
@@ -365,6 +407,75 @@ exports.cancelBooking = async (req, res) => {
       .status(200)
       .json({ message: "Booking cancelled successfully", booking });
   } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Get booked time slots for an employee on a specific date
+exports.getBookedSlots = async (req, res) => {
+  try {
+    const { employeeId, date } = req.query;
+
+    if (!employeeId || !date) {
+      return res.status(400).json({ 
+        message: "Employee ID and date are required" 
+      });
+    }
+
+    // Parse the date string (YYYY-MM-DD format) and create date range for the day
+    // Use UTC to avoid timezone issues
+    const dateParts = date.split('-');
+    if (dateParts.length !== 3) {
+      return res.status(400).json({ 
+        message: "Invalid date format. Expected YYYY-MM-DD" 
+      });
+    }
+
+    const year = parseInt(dateParts[0], 10);
+    const month = parseInt(dateParts[1], 10) - 1; // Month is 0-indexed
+    const day = parseInt(dateParts[2], 10);
+
+    // Create date range for the entire day in UTC
+    const startOfDay = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+    const endOfDay = new Date(Date.UTC(year, month, day, 23, 59, 59, 999));
+
+    // Find all bookings for this employee on this date with active status
+    // Only include bookings that are Pending or Accepted (not Cancelled or Rejected)
+    const bookings = await Booking.find({
+      employee: employeeId,
+      date: {
+        $gte: startOfDay,
+        $lte: endOfDay
+      },
+      status: { $in: ["Pending", "Accepted"] }
+    }).select("time status date");
+
+    console.log(`[getBookedSlots] Query params: employeeId=${employeeId}, date=${date}`);
+    console.log(`[getBookedSlots] Date range: ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`);
+    console.log(`[getBookedSlots] Found ${bookings.length} bookings`);
+
+    // Extract time slots (remove duplicates if any)
+    const bookedSlotsMap = new Map();
+    bookings.forEach(booking => {
+      console.log(`[getBookedSlots] Booking found: time=${booking.time}, date=${booking.date}, status=${booking.status}`);
+      if (!bookedSlotsMap.has(booking.time)) {
+        bookedSlotsMap.set(booking.time, {
+          time: booking.time,
+          status: booking.status
+        });
+      }
+    });
+
+    const bookedSlots = Array.from(bookedSlotsMap.values());
+    console.log(`[getBookedSlots] Returning ${bookedSlots.length} unique booked slots:`, bookedSlots);
+
+    res.status(200).json({ 
+      bookedSlots,
+      date: date,
+      count: bookedSlots.length
+    });
+  } catch (error) {
+    console.error('Error in getBookedSlots:', error);
     res.status(500).json({ message: error.message });
   }
 };

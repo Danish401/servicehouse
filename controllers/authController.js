@@ -370,17 +370,33 @@ exports.signup = async (req, res) => {
   const { name, email, password, phone, address1, address2 ,image} = req.body;
 
   try {
-    let user = await User.findOne({ email });
-    if (user) return res.status(400).json({ message: "Email already in use" });
+    let existingUser = await User.findOne({ $or: [{ email }, { phone }] });
+
+    if (existingUser) {
+      let errorMessage = "";
+
+      if (existingUser.email === email && existingUser.phone === phone) {
+        errorMessage = "This email and phone number already exist. Use another one to create an account.";
+      } else if (existingUser.email === email) {
+        errorMessage = "Email already in use.";
+      } else if (existingUser.phone === phone) {
+        errorMessage = "Phone number already in use.";
+      }
+
+      return res.status(400).json({ message: errorMessage });
+    }
 
     // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Upload image to Cloudinary
-    const file = req.file; // From Multer middleware
-    const result = await cloudinary.uploader.upload(file.path, {
-      folder: "users", // Folder name in Cloudinary
-    });
+    let imageUrl = ""; // Default empty
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: "users", // Folder name in Cloudinary
+      });
+      imageUrl = result.secure_url;
+    }
 
     user = new User({
       name,
@@ -389,7 +405,7 @@ exports.signup = async (req, res) => {
       phone,
       address1,
       address2,
-      image: result.secure_url, // Save Cloudinary image URL
+      image: imageUrl, // Save Cloudinary image URL
     });
     await user.save();
 
@@ -546,15 +562,16 @@ exports.updateUser = async (req, res) => {
   }
 };
 
-
-
 exports.getUserById = async (req, res) => {
   const { id } = req.params;
+
   try {
     const user = await User.findById(id);
+
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
+
     res.status(200).json({
       user: {
         id: user._id,
@@ -564,12 +581,40 @@ exports.getUserById = async (req, res) => {
         address1: user.address1,
         address2: user.address2,
         image: user.image,
+        role: user.role,
+        isPremium: user.isPremium,
+        premiumPlan: user.premiumPlan,
+        premiumExpiry: user.premiumExpiry,
       },
     });
   } catch (err) {
     res.status(500).json({ error: "Server error", details: err.message });
   }
 };
+
+
+// exports.getUserById = async (req, res) => {
+//   const { id } = req.params;
+//   try {
+//     const user = await User.findById(id);
+//     if (!user) {
+//       return res.status(404).json({ message: "User not found" });
+//     }
+//     res.status(200).json({
+//       user: {
+//         id: user._id,
+//         name: user.name,
+//         email: user.email,
+//         phone: user.phone,
+//         address1: user.address1,
+//         address2: user.address2,
+//         image: user.image,
+//       },
+//     });
+//   } catch (err) {
+//     res.status(500).json({ error: "Server error", details: err.message });
+//   }
+// };
 
 
 

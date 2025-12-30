@@ -7,12 +7,18 @@ const {
   cancelBooking,
   getBookingById,
   getAllBookings,
-  updateBooking,updateBookingStatus,invoice,
+  updateBooking,
+  updateBookingStatus,
+  invoice,
+  getBookedSlots,
 } = require("../controllers/bookingController");
 
 // POST: Create a booking
 router.post("/", createBooking);
 router.put("/bookings/:bookingId/status", updateBookingStatus);
+
+// GET: Get booked slots for an employee on a specific date
+router.get("/booked-slots", getBookedSlots);
 
 // GET: Get bookings for a customer
 router.get("/customer/:customerId", getCustomerBookings);
