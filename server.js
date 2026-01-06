@@ -512,6 +512,8 @@ const http = require("http");
 const { Server } = require("socket.io");
 const chatRoutes = require("./routes/chatRoutes");
 const Chat = require("./models/Chat");
+const fs = require("fs");
+const path = require("path");
 require("dotenv").config();
 
 const authRoutes = require("./routes/auth");
@@ -539,17 +541,27 @@ const io = new Server(server, {
 });
 
 mongoose
-  .connect(process.env.MONGO_URI, {})
+  .connect(process.env.MONGO_URI, {
+    serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+    socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
+  })
   .then(() => {
     console.log("MongoDB connected");
+    // Start server only after MongoDB connection is established
+    const PORT = process.env.PORT || 5000;
+    server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   })
   .catch((error) => {
     console.error("MongoDB connection error:", error);
+    process.exit(1); // Exit process if MongoDB connection fails
   });
 const FRONTEND_URL = process.env.FRONTEND_URL;
 // Middleware
 const allowedOrigins = [
   "http://localhost:5173",
+  "http://localhost:5174",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5174",
   "https://67ab9e9fed926fbf98bdc4a4--houseservices.netlify.app",
   "https://houseservices.netlify.app",
 ];
@@ -557,15 +569,25 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      // Allow requests with no origin (like mobile apps, Postman, curl, etc.)
+      if (!origin) {
+        return callback(null, true);
+      }
+      
+      // Normalize origin (remove trailing slash)
+      const normalizedOrigin = origin.endsWith('/') ? origin.slice(0, -1) : origin;
+      
+      // Check if origin is in allowed list
+      if (allowedOrigins.includes(normalizedOrigin) || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(new Error("Not allowed by CORS"));
+        console.log(`CORS blocked origin: ${origin}`);
+        callback(new Error(`Not allowed by CORS. Origin: ${origin}`));
       }
     },
-    methods: "GET,POST,PUT,DELETE,PATCH",
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     credentials: true,
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
     exposedHeaders: ["Content-Disposition"],
   })
 );
@@ -707,8 +729,19 @@ app.use("/api/employees", employeeRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api", chatRoutess);
-const activeUsers = {};
+
+// Serve uploaded files statically
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+const activeUsers = {}; // userId -> socket.id
+const bookingUsers = {}; // bookingId -> Set of userIds
 const typingUsers = {};
+
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
 io.on("connection", (socket) => {
   console.log("📶 User connected:", socket.id);
@@ -717,7 +750,24 @@ io.on("connection", (socket) => {
   socket.on("joinRoom", ({ bookingId, userId }) => {
     socket.join(bookingId);
     activeUsers[userId] = socket.id;
+    
+    // Track users in booking
+    if (!bookingUsers[bookingId]) {
+      bookingUsers[bookingId] = new Set();
+    }
+    bookingUsers[bookingId].add(userId);
+    
     console.log(`👤 User ${userId} joined chat for booking ${bookingId}`);
+    
+    // Notify other users in the room that this user is online
+    socket.to(bookingId).emit("userOnline", { userId, bookingId });
+  });
+
+  // Handle user presence updates
+  socket.on("userPresence", ({ userId, bookingId, isOnline }) => {
+    if (bookingId && bookingUsers[bookingId]) {
+      socket.to(bookingId).emit("userOnline", { userId, bookingId, isOnline });
+    }
   });
 
   socket.on("sendMessage", async (data) => {
@@ -749,31 +799,83 @@ io.on("connection", (socket) => {
         });
       }
 
-      // ✅ Save media if file exists
+      // ✅ Handle base64 image data
       let mediaUrl = null;
-      if (media) {
+      if (media && typeof media === "string" && media.startsWith("data:image")) {
+        try {
+          // Extract base64 data and file extension
+          const matches = media.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
+          if (matches && matches.length === 3) {
+            const ext = matches[1] || "png";
+            const base64Data = matches[2];
+            const buffer = Buffer.from(base64Data, "base64");
+            
+            // Generate filename
+            const fileName = `${Date.now()}-${sender}.${ext}`;
+            const filePath = path.join(uploadsDir, fileName);
+            
+            // Save file
+            fs.writeFileSync(filePath, buffer);
+            
+            // Store URL (relative to server root)
+            mediaUrl = `/uploads/${fileName}`;
+            console.log(`✅ Image saved: ${mediaUrl}`);
+          }
+        } catch (err) {
+          console.error("❌ Error saving base64 image:", err);
+        }
+      } else if (media && typeof media === "object" && media.mv) {
+        // Handle file object (if sent via HTTP POST)
         const fileName = `uploads/${Date.now()}-${media.name}`;
-        media.mv(fileName); // ✅ Save file
+        media.mv(fileName);
         mediaUrl = `/${fileName}`;
       }
 
-      chat.messages.push({
+      // Handle location object
+      let locationData = null;
+      if (location) {
+        if (typeof location === "string") {
+          try {
+            locationData = JSON.parse(location);
+          } catch (e) {
+            locationData = location;
+          }
+        } else {
+          locationData = location;
+        }
+        // Ensure location has proper structure
+        if (locationData && (locationData.lat !== undefined || locationData.latitude !== undefined)) {
+          locationData = {
+            latitude: locationData.lat || locationData.latitude,
+            longitude: locationData.lng || locationData.longitude,
+            accuracy: locationData.accuracy || null,
+            timestamp: locationData.timestamp || new Date().toISOString(),
+          };
+        }
+      }
+
+      const newMessage = {
         sender,
         senderModel,
         receiver,
         receiverModel,
-        message,
-        media: mediaUrl, // ✅ Store media URL in MongoDB
-        location,
-      });
+        message: message || (locationData ? "📍 Location shared" : ""),
+        media: mediaUrl,
+        location: locationData,
+        timestamp: new Date(),
+      };
 
+      chat.messages.push(newMessage);
       await chat.save();
-      io.to(bookingId).emit(
-        "receiveMessage",
-        chat.messages[chat.messages.length - 1]
-      ); // ✅ Send message to chat room
+      
+      // Get the saved message with _id
+      const savedMessage = chat.messages[chat.messages.length - 1];
+      
+      // Emit to all users in the room (including sender for confirmation)
+      io.to(bookingId).emit("receiveMessage", savedMessage);
     } catch (error) {
       console.error("❌ Error sending message via socket:", error);
+      socket.emit("messageError", { error: "Failed to send message" });
     }
   });
 
@@ -820,14 +922,25 @@ io.on("connection", (socket) => {
   // 🛑 Handle user disconnection
   socket.on("disconnect", () => {
     console.log("🔴 User disconnected:", socket.id);
+    
+    // Find which user disconnected and notify their bookings
     for (const userId in activeUsers) {
       if (activeUsers[userId] === socket.id) {
+        // Find all bookings this user was in
+        for (const bookingId in bookingUsers) {
+          if (bookingUsers[bookingId].has(userId)) {
+            bookingUsers[bookingId].delete(userId);
+            // Notify others in the room
+            socket.to(bookingId).emit("userOffline", { 
+              userId, 
+              bookingId,
+              lastSeen: new Date() 
+            });
+          }
+        }
         delete activeUsers[userId];
         break;
       }
     }
   });
 });
-
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));

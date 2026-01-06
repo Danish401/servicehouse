@@ -366,10 +366,79 @@ exports.verifyOtp = async (req, res) => {
   res.status(200).json({ message: "OTP verified successfully" });
 };
 
+// ✅ Send Registration Success Email
+const sendRegistrationEmail = async (email, name) => {
+  try {
+    let transporter = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 465, // Secure SMTP port for Gmail
+      secure: true, // Use SSL for port 465
+      auth: {
+        user: process.env.EMAIL_USER, // Store in .env
+        pass: process.env.EMAIL_PASS, // Store in .env
+      },
+    });
+
+    let info = await transporter.sendMail({
+      from: `"House Service Support Team" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "Welcome! You are Registered Successfully",
+      text: `Dear ${name || "User"}, 
+    
+    Congratulations! You have successfully registered with House Service.
+    
+    Your account has been created and you can now access all our services.
+    
+    Thank you for choosing House Service. We look forward to serving you!
+    
+    If you have any questions, please feel free to contact our support team.
+    
+    Best Regards,
+    House Service Support Team`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+          <div style="background-color: #6E6ADE; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
+            <h1 style="margin: 0;">Welcome to House Service!</h1>
+          </div>
+          <div style="background-color: white; padding: 30px; border-radius: 0 0 5px 5px;">
+            <p style="font-size: 16px; color: #333;">Dear ${name || "User"},</p>
+            <p style="font-size: 16px; color: #333;">Congratulations! You have successfully registered with House Service.</p>
+            <p style="font-size: 16px; color: #333;">Your account has been created and you can now access all our services.</p>
+            <div style="background-color: #E2DDFE; padding: 15px; border-radius: 5px; margin: 20px 0;">
+              <p style="margin: 0; font-size: 14px; color: #333;"><strong>What's Next?</strong></p>
+              <ul style="margin: 10px 0; padding-left: 20px; color: #333;">
+                <li>Explore our wide range of services</li>
+                <li>Book appointments at your convenience</li>
+                <li>Manage your profile and preferences</li>
+              </ul>
+            </div>
+            <p style="font-size: 16px; color: #333;">Thank you for choosing House Service. We look forward to serving you!</p>
+            <p style="font-size: 16px; color: #333;">If you have any questions, please feel free to contact our support team.</p>
+            <p style="font-size: 14px; color: #666; margin-top: 30px;">Best Regards,<br/> <strong>House Service Support Team</strong></p>
+          </div>
+        </div>
+      `,
+    });
+    
+    console.log("Registration Email sent:", info.messageId);
+  } catch (error) {
+    console.error("Error sending registration email:", error);
+    // Don't throw error - registration should still succeed even if email fails
+  }
+};
+
 exports.signup = async (req, res) => {
   const { name, email, password, phone, address1, address2 ,image} = req.body;
 
   try {
+    // Validate mandatory fields
+    if (!email || !email.trim()) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+    if (!password || !password.trim()) {
+      return res.status(400).json({ message: "Password is required" });
+    }
+
     let existingUser = await User.findOne({ $or: [{ email }, { phone }] });
 
     if (existingUser) {
@@ -411,6 +480,12 @@ exports.signup = async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign({ id: user._id }, jwtSecret, { expiresIn: "1h" });
+
+    // Send registration success email (non-blocking)
+    sendRegistrationEmail(email, name).catch(err => {
+      console.error("Failed to send registration email:", err);
+      // Don't fail the registration if email fails
+    });
 
     res.status(201).json({
       message: "Signup successful",

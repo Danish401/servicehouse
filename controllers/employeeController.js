@@ -3,8 +3,71 @@
 
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const nodemailer = require('nodemailer');
+const mongoose = require('mongoose');
 const Employee = require('../models/Employee');
 const cloudinary = require('cloudinary').v2; // Make sure you have configured Cloudinary
+
+// ✅ Send Registration Success Email
+const sendRegistrationEmail = async (email, name) => {
+  try {
+    let transporter = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 465, // Secure SMTP port for Gmail
+      secure: true, // Use SSL for port 465
+      auth: {
+        user: process.env.EMAIL_USER, // Store in .env
+        pass: process.env.EMAIL_PASS, // Store in .env
+      },
+    });
+
+    let info = await transporter.sendMail({
+      from: `"House Service Support Team" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "Welcome! You are Registered Successfully as Employee",
+      text: `Dear ${name || "User"}, 
+    
+    Congratulations! You have successfully registered with House Service as an Employee.
+    
+    Your employee account has been created and you can now access all our services.
+    
+    Thank you for choosing House Service. We look forward to serving with you!
+    
+    If you have any questions, please feel free to contact our support team.
+    
+    Best Regards,
+    House Service Support Team`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+          <div style="background-color: #6E6ADE; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
+            <h1 style="margin: 0;">Welcome to House Service!</h1>
+          </div>
+          <div style="background-color: white; padding: 30px; border-radius: 0 0 5px 5px;">
+            <p style="font-size: 16px; color: #333;">Dear ${name || "User"},</p>
+            <p style="font-size: 16px; color: #333;">Congratulations! You have successfully registered with House Service as an Employee.</p>
+            <p style="font-size: 16px; color: #333;">Your employee account has been created and you can now access all our services.</p>
+            <div style="background-color: #E2DDFE; padding: 15px; border-radius: 5px; margin: 20px 0;">
+              <p style="margin: 0; font-size: 14px; color: #333;"><strong>What's Next?</strong></p>
+              <ul style="margin: 10px 0; padding-left: 20px; color: #333;">
+                <li>Complete your profile with detailed information</li>
+                <li>Start receiving booking requests from customers</li>
+                <li>Manage your appointments and schedule</li>
+              </ul>
+            </div>
+            <p style="font-size: 16px; color: #333;">Thank you for choosing House Service. We look forward to serving with you!</p>
+            <p style="font-size: 16px; color: #333;">If you have any questions, please feel free to contact our support team.</p>
+            <p style="font-size: 14px; color: #666; margin-top: 30px;">Best Regards,<br/> <strong>House Service Support Team</strong></p>
+          </div>
+        </div>
+      `,
+    });
+    
+    console.log("Employee Registration Email sent:", info.messageId);
+  } catch (error) {
+    console.error("Error sending registration email:", error);
+    // Don't throw error - registration should still succeed even if email fails
+  }
+};
 
 // Register a new employee
 exports.registerEmployee = async (req, res) => {
@@ -15,7 +78,6 @@ exports.registerEmployee = async (req, res) => {
     category,
     speciality,
     phone,
-    education,
     address1,
     address2,
     experience,
@@ -45,7 +107,6 @@ exports.registerEmployee = async (req, res) => {
       category,
       speciality,
       phone,
-      education,
       address1,
       address2,
       experience,
@@ -55,6 +116,9 @@ exports.registerEmployee = async (req, res) => {
     });
 
     await newEmployee.save();
+
+    // Send registration success email
+    await sendRegistrationEmail(email, name);
 
     const token = jwt.sign({ id: newEmployee._id }, process.env.JWT_SECRET, {
       expiresIn: "1h",
@@ -109,7 +173,6 @@ exports.updateEmployeeById = async (req, res) => {
         category,
         speciality,
         phone,
-        education,
         address1,
         address2,
         experience,
@@ -193,13 +256,19 @@ exports.loginEmployee = async (req, res) => {
 // Get all Employees
 exports.getAllEmployees = async (req, res) => {
   try {
+    // Check if MongoDB connection is ready
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ 
+        message: "Database connection not ready. Please try again in a moment." 
+      });
+    }
+
     const employees = await Employee.find({}, {
       name: 1,
       email: 1,
       category: 1,
       speciality: 1,
       phone: 1,
-      education: 1,
       address1: 1,
       address2: 1,
       experience: 1,
