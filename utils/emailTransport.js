@@ -1,81 +1,143 @@
 const nodemailer = require("nodemailer");
+const axios = require("axios");
 
-function getEmailConfig() {
-  const host = process.env.EMAIL_HOST || "smtp.gmail.com";
-  const port = Number(process.env.EMAIL_PORT || 587); // 587 works better on many hosts than 465
-  const secure =
-    typeof process.env.EMAIL_SECURE === "string"
-      ? process.env.EMAIL_SECURE === "true"
-      : port === 465;
+// Check if SendGrid is configured (preferred - works on Render)
+function isSendGridConfigured() {
+  return !!process.env.SENDGRID_API_KEY;
+}
+
+// SendGrid HTTP API (works reliably on Render)
+async function sendViaSendGrid(mailOptions) {
+  const apiKey = process.env.SENDGRID_API_KEY;
+  const fromEmail = process.env.SENDGRID_FROM_EMAIL || process.env.EMAIL_USER || "noreply@house-service.com";
+  const fromName = process.env.SENDGRID_FROM_NAME || "House Service Support Team";
+
+  const payload = {
+    personalizations: [{
+      to: [{ email: mailOptions.to }],
+      subject: mailOptions.subject,
+    }],
+    from: {
+      email: fromEmail,
+      name: fromName,
+    },
+    content: [
+      {
+        type: "text/plain",
+        value: mailOptions.text || "",
+      },
+      {
+        type: "text/html",
+        value: mailOptions.html || mailOptions.text || "",
+      },
+    ],
+  };
+
+  const response = await axios.post(
+    "https://api.sendgrid.com/v3/mail/send",
+    payload,
+    {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      timeout: 10000, // 10 second timeout
+    }
+  );
 
   return {
-    host,
-    port,
-    secure,
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    messageId: response.headers["x-message-id"] || `sendgrid-${Date.now()}`,
+    accepted: [mailOptions.to],
   };
 }
 
-function createEmailTransport() {
-  const cfg = getEmailConfig();
+// Fallback to Gmail SMTP (for localhost)
+function createGmailTransport() {
+  const host = process.env.EMAIL_HOST || "smtp.gmail.com";
+  const port = Number(process.env.EMAIL_PORT || 587);
+  const secure = port === 465;
 
-  if (!cfg.user || !cfg.pass) {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
     throw new Error("EMAIL_USER or EMAIL_PASS is missing in environment variables");
   }
 
   return nodemailer.createTransport({
-    host: cfg.host,
-    port: cfg.port,
-    secure: cfg.secure,
+    host,
+    port,
+    secure,
     auth: {
-      user: cfg.user,
-      pass: cfg.pass,
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
     },
-    // Aggressive timeouts for Render.com (they block Gmail SMTP)
-    connectionTimeout: 10000, // 10 seconds - fail fast
+    connectionTimeout: 10000,
     greetingTimeout: 10000,
     socketTimeout: 10000,
-    // STARTTLS on 587
-    requireTLS: !cfg.secure,
+    requireTLS: !secure,
     tls: {
-      servername: cfg.host,
-      rejectUnauthorized: false, // Allow self-signed certs if needed
+      servername: host,
+      rejectUnauthorized: false,
     },
-    // Pool connections
-    pool: true,
-    maxConnections: 1,
-    maxMessages: 1,
   });
 }
 
-// Retry email sending with exponential backoff
+// Main email sending function - tries SendGrid first, falls back to Gmail
 async function sendEmailWithRetry(mailOptions, maxRetries = 2) {
   let lastError;
-  
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const transporter = createEmailTransport();
+      // Prefer SendGrid if configured (works on Render)
+      if (isSendGridConfigured()) {
+        console.log(`[Email] Using SendGrid (attempt ${attempt}/${maxRetries})`);
+        const info = await sendViaSendGrid(mailOptions);
+        return { success: true, info };
+      }
+
+      // Fallback to Gmail SMTP (for localhost)
+      console.log(`[Email] Using Gmail SMTP (attempt ${attempt}/${maxRetries})`);
+      const transporter = createGmailTransport();
       const info = await Promise.race([
         transporter.sendMail(mailOptions),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Email send timeout after 15s')), 15000)
-        )
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Email send timeout after 15s")), 15000)
+        ),
       ]);
       return { success: true, info };
     } catch (error) {
       lastError = error;
       console.error(`Email send attempt ${attempt}/${maxRetries} failed:`, error.message);
-      
+
       if (attempt < maxRetries) {
-        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000); // Exponential backoff, max 5s
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
         console.log(`Retrying email in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
   }
-  
+
   return { success: false, error: lastError };
+}
+
+// Legacy function for backward compatibility
+function createEmailTransport() {
+  if (isSendGridConfigured()) {
+    // Return a mock transporter that uses SendGrid
+    return {
+      sendMail: async (mailOptions) => {
+        const result = await sendEmailWithRetry(mailOptions, 1);
+        if (!result.success) throw result.error;
+        return result.info;
+      },
+    };
+  }
+  return createGmailTransport();
+}
+
+function getEmailConfig() {
+  return {
+    provider: isSendGridConfigured() ? "SendGrid" : "Gmail SMTP",
+    fromEmail: process.env.SENDGRID_FROM_EMAIL || process.env.EMAIL_USER,
+  };
 }
 
 module.exports = {
