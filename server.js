@@ -549,13 +549,22 @@ mongoose
     console.log("MongoDB connected");
     
     // Verify email configuration on startup
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.warn("⚠️  WARNING: Email configuration missing! EMAIL_USER or EMAIL_PASS not set in environment variables.");
-      console.warn("   Email notifications will not work until these are configured.");
+    const { getEmailConfig, isSendGridConfigured } = require("./utils/emailTransport");
+    
+    if (isSendGridConfigured()) {
+      console.log("✅ Email service: SendGrid API configured (recommended for Render.com)");
+      console.log("   From Email:", process.env.SENDGRID_FROM_EMAIL || process.env.EMAIL_USER || "Not set");
     } else {
-      const { getEmailConfig } = require("./utils/emailTransport");
-      const cfg = getEmailConfig();
-      console.log("✅ Email configuration found: EMAIL_USER is set");
+      console.warn("⚠️  WARNING: SendGrid API key not found!");
+      console.warn("   Render.com blocks Gmail SMTP, causing email timeouts.");
+      console.warn("   To fix: Add SENDGRID_API_KEY to Render environment variables.");
+      console.warn("   See SENDGRID_SETUP.md for instructions.");
+      
+      if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+        console.warn("   Also missing: EMAIL_USER or EMAIL_PASS (fallback to Gmail won't work)");
+      } else {
+        console.warn("   Falling back to Gmail SMTP (will timeout on Render.com)");
+      }
       console.log(`   SMTP: ${cfg.host}:${cfg.port} secure=${cfg.secure}`);
       console.log("   (We use STARTTLS on 587 by default to avoid Render 465 timeouts)");
     }

@@ -2,9 +2,7 @@ const nodemailer = require("nodemailer");
 const axios = require("axios");
 
 // Check if SendGrid is configured (preferred - works on Render)
-function isSendGridConfigured() {
-  return !!process.env.SENDGRID_API_KEY;
-}
+// Exported at bottom of file
 
 // SendGrid HTTP API (works reliably on Render)
 async function sendViaSendGrid(mailOptions) {
@@ -140,10 +138,16 @@ function getEmailConfig() {
   };
 }
 
+// Export helper for server startup check
+function isSendGridConfigured() {
+  return !!process.env.SENDGRID_API_KEY;
+}
+
 module.exports = {
   getEmailConfig,
   createEmailTransport,
   sendEmailWithRetry,
+  isSendGridConfigured,
 };
 
 
