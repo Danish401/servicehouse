@@ -1,14 +1,7 @@
-const nodemailer = require("nodemailer");
-
-const transporter = nodemailer.createTransport({
-  service: "Gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+const { createEmailTransport } = require("./emailTransport");
 
 module.exports.sendExpiryMail = async (to, name, daysLeft) => {
+  const transporter = createEmailTransport();
   await transporter.sendMail({
     from: `"House Services" <${process.env.EMAIL_USER}>`,
     to,

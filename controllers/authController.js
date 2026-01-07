@@ -3,6 +3,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const cloudinary = require("cloudinary").v2;
 const nodemailer = require("nodemailer");
+const { createEmailTransport } = require("../utils/emailTransport");
 
 const dotenv = require("dotenv");
 
@@ -20,15 +21,7 @@ const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString()
 // ✅ Send OTP via Email (Using Gmail)
 const sendEmailOTP = async (email, otp) => {
   try {
-    let transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 465, // Secure SMTP port for Gmail
-      secure: true, // Use SSL for port 465
-      auth: {
-        user: process.env.EMAIL_USER, // Store in .env
-        pass: process.env.EMAIL_PASS, // Store in .env
-      },
-    });
+    const transporter = createEmailTransport();
 
     // let info = await transporter.sendMail({
     //   from: `"House Service Support Team" <${process.env.EMAIL_USER}>`,
@@ -369,15 +362,7 @@ exports.verifyOtp = async (req, res) => {
 // ✅ Send Registration Success Email
 const sendRegistrationEmail = async (email, name) => {
   try {
-    let transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 465, // Secure SMTP port for Gmail
-      secure: true, // Use SSL for port 465
-      auth: {
-        user: process.env.EMAIL_USER, // Store in .env
-        pass: process.env.EMAIL_PASS, // Store in .env
-      },
-    });
+    const transporter = createEmailTransport();
 
     let info = await transporter.sendMail({
       from: `"House Service Support Team" <${process.env.EMAIL_USER}>`,

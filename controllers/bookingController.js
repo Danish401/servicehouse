@@ -6,6 +6,7 @@ const nodemailer = require("nodemailer");
 const Booking = require("../models/Booking");
 const Employee = require("../models/Employee");
 const Customer = require("../models/User");
+const { createEmailTransport, getEmailConfig } = require("../utils/emailTransport");
 
 // ✅ Test Email Configuration Endpoint
 exports.testEmail = async (req, res) => {
@@ -23,21 +24,7 @@ exports.testEmail = async (req, res) => {
       });
     }
 
-    // Test connection
-    const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 465,
-      secure: true,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-      connectionTimeout: 15000, // 15 seconds for test
-      greetingTimeout: 15000,
-      socketTimeout: 15000,
-      pool: true,
-      maxConnections: 1,
-    });
+    const transporter = createEmailTransport();
 
     // Try sending a test email
     const testEmail = req.body.testEmail || process.env.EMAIL_USER;
@@ -60,9 +47,10 @@ exports.testEmail = async (req, res) => {
       message: "Email service is working correctly!",
       details: {
         emailUser: process.env.EMAIL_USER,
+        transport: getEmailConfig(),
         testEmailSentTo: testEmail,
         messageId: info.messageId,
-        connectionStatus: "Verified",
+        connectionStatus: "Sent",
       },
     });
   } catch (error) {
@@ -96,15 +84,7 @@ const sendBookingNotificationToEmployee = async (employeeEmail, employeeName, cu
       return;
     }
 
-    let transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 465,
-      secure: true,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
+    const transporter = createEmailTransport();
 
     // Verify connection
     // Connection verification removed - causes timeout on Render.com
@@ -194,15 +174,7 @@ const sendBookingStatusUpdateToCustomer = async (customerEmail, customerName, em
       return;
     }
 
-    let transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 465,
-      secure: true,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
+    const transporter = createEmailTransport();
 
     // Verify connection
     // Connection verification removed - causes timeout on Render.com
@@ -463,15 +435,7 @@ const sendBookingCancellationToEmployee = async (employeeEmail, employeeName, cu
       return;
     }
 
-    let transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 465,
-      secure: true,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
+    const transporter = createEmailTransport();
 
     // Verify connection
     // Connection verification removed - causes timeout on Render.com

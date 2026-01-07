@@ -11,6 +11,9 @@ You need to set these in Render.com:
 
 1. `EMAIL_USER` - Your Gmail address (e.g., `your-email@gmail.com`)
 2. `EMAIL_PASS` - Gmail App Password (NOT your regular Gmail password)
+3. `EMAIL_PORT` - Recommended: `587` (STARTTLS). Port `465` often times out on Render.
+4. `EMAIL_HOST` - Optional, default: `smtp.gmail.com`
+5. `EMAIL_SECURE` - Optional, default: `false` for port 587, `true` for port 465
 
 ## Step-by-Step Setup:
 

@@ -553,22 +553,11 @@ mongoose
       console.warn("⚠️  WARNING: Email configuration missing! EMAIL_USER or EMAIL_PASS not set in environment variables.");
       console.warn("   Email notifications will not work until these are configured.");
     } else {
+      const { getEmailConfig } = require("./utils/emailTransport");
+      const cfg = getEmailConfig();
       console.log("✅ Email configuration found: EMAIL_USER is set");
-      // Test email connection
-      const nodemailer = require("nodemailer");
-      const testTransporter = nodemailer.createTransport({
-        host: "smtp.gmail.com",
-        port: 465,
-        secure: true,
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS,
-        },
-      });
-      
-      // Don't verify connection on startup (can cause timeout issues)
-      // Connection will be tested when actually sending emails
-      console.log("✅ Email configuration loaded (connection will be tested on first email send)");
+      console.log(`   SMTP: ${cfg.host}:${cfg.port} secure=${cfg.secure}`);
+      console.log("   (We use STARTTLS on 587 by default to avoid Render 465 timeouts)");
     }
     
     // Start server only after MongoDB connection is established
