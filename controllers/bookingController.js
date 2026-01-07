@@ -32,10 +32,12 @@ exports.testEmail = async (req, res) => {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
+      connectionTimeout: 15000, // 15 seconds for test
+      greetingTimeout: 15000,
+      socketTimeout: 15000,
+      pool: true,
+      maxConnections: 1,
     });
-
-    // Verify connection
-    await transporter.verify();
 
     // Try sending a test email
     const testEmail = req.body.testEmail || process.env.EMAIL_USER;

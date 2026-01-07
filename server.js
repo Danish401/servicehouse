@@ -566,14 +566,9 @@ mongoose
         },
       });
       
-      testTransporter.verify((error, success) => {
-        if (error) {
-          console.error("❌ Email service connection failed:", error.message);
-          console.error("   Please check your EMAIL_USER and EMAIL_PASS environment variables.");
-        } else {
-          console.log("✅ Email service ready - SMTP connection verified");
-        }
-      });
+      // Don't verify connection on startup (can cause timeout issues)
+      // Connection will be tested when actually sending emails
+      console.log("✅ Email configuration loaded (connection will be tested on first email send)");
     }
     
     // Start server only after MongoDB connection is established
