@@ -6,7 +6,7 @@ const nodemailer = require("nodemailer");
 const Booking = require("../models/Booking");
 const Employee = require("../models/Employee");
 const Customer = require("../models/User");
-const { createEmailTransport, getEmailConfig } = require("../utils/emailTransport");
+const { createEmailTransport, getEmailConfig, sendEmailWithRetry } = require("../utils/emailTransport");
 
 // ✅ Test Email Configuration Endpoint
 exports.testEmail = async (req, res) => {
@@ -75,29 +75,25 @@ exports.testEmail = async (req, res) => {
   }
 };
 
-// ✅ Send Booking Notification Email to Employee
+// ✅ Send Booking Notification Email to Employee (Non-blocking with retry)
 const sendBookingNotificationToEmployee = async (employeeEmail, employeeName, customerName, customerEmail, customerPhone, bookingDetails) => {
-  try {
-    // Validate email configuration
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.error("Email configuration missing: EMAIL_USER or EMAIL_PASS not set");
-      return;
-    }
+  // Run in background - don't block booking creation
+  setImmediate(async () => {
+    try {
+      // Validate email configuration
+      if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+        console.error("Email configuration missing: EMAIL_USER or EMAIL_PASS not set");
+        return;
+      }
 
-    const transporter = createEmailTransport();
+      const formattedDate = new Date(bookingDetails.date).toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
 
-    // Verify connection
-    // Connection verification removed - causes timeout on Render.com
-    // Emails will be sent directly without verification
-
-    const formattedDate = new Date(bookingDetails.date).toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-
-    let info = await transporter.sendMail({
+      const mailOptions = {
       from: `"House Service Support Team" <${process.env.EMAIL_USER}>`,
       to: employeeEmail,
       subject: `New Booking Request from ${customerName}`,
@@ -149,20 +145,24 @@ const sendBookingNotificationToEmployee = async (employeeEmail, employeeName, cu
           </div>
         </div>
       `,
-    });
-    
-    console.log("✅ Booking notification email sent to employee:", info.messageId);
-    console.log("   Employee Email:", employeeEmail);
-  } catch (error) {
-    console.error("❌ Error sending booking notification email to employee:", error.message);
-    console.error("   Error Details:", {
-      code: error.code,
-      command: error.command,
-      response: error.response,
-      responseCode: error.responseCode,
-    });
-    // Don't throw error - booking should still succeed even if email fails
-  }
+      };
+
+      // Use retry function with timeout
+      const result = await sendEmailWithRetry(mailOptions, 2);
+      
+      if (result.success) {
+        console.log("✅ Booking notification email sent to employee:", result.info.messageId);
+        console.log("   Employee Email:", employeeEmail);
+      } else {
+        console.error("❌ Failed to send booking notification email to employee after retries");
+        console.error("   Employee Email:", employeeEmail);
+        console.error("   Error:", result.error?.message || "Unknown error");
+      }
+    } catch (error) {
+      console.error("❌ Error in sendBookingNotificationToEmployee:", error.message);
+      // Don't throw error - booking should still succeed even if email fails
+    }
+  });
 };
 
 // ✅ Send Booking Status Update Email to Customer
