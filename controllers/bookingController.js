@@ -10,6 +10,12 @@ const Customer = require("../models/User");
 // ✅ Send Booking Notification Email to Employee
 const sendBookingNotificationToEmployee = async (employeeEmail, employeeName, customerName, customerEmail, customerPhone, bookingDetails) => {
   try {
+    // Validate email configuration
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      console.error("Email configuration missing: EMAIL_USER or EMAIL_PASS not set");
+      return;
+    }
+
     let transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
       port: 465,
@@ -19,6 +25,9 @@ const sendBookingNotificationToEmployee = async (employeeEmail, employeeName, cu
         pass: process.env.EMAIL_PASS,
       },
     });
+
+    // Verify connection
+    await transporter.verify();
 
     const formattedDate = new Date(bookingDetails.date).toLocaleDateString('en-US', {
       weekday: 'long',
@@ -81,9 +90,16 @@ const sendBookingNotificationToEmployee = async (employeeEmail, employeeName, cu
       `,
     });
     
-    console.log("Booking notification email sent to employee:", info.messageId);
+    console.log("✅ Booking notification email sent to employee:", info.messageId);
+    console.log("   Employee Email:", employeeEmail);
   } catch (error) {
-    console.error("Error sending booking notification email to employee:", error);
+    console.error("❌ Error sending booking notification email to employee:", error.message);
+    console.error("   Error Details:", {
+      code: error.code,
+      command: error.command,
+      response: error.response,
+      responseCode: error.responseCode,
+    });
     // Don't throw error - booking should still succeed even if email fails
   }
 };
@@ -91,6 +107,12 @@ const sendBookingNotificationToEmployee = async (employeeEmail, employeeName, cu
 // ✅ Send Booking Status Update Email to Customer
 const sendBookingStatusUpdateToCustomer = async (customerEmail, customerName, employeeName, bookingDetails, status, bookingId) => {
   try {
+    // Validate email configuration
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      console.error("Email configuration missing: EMAIL_USER or EMAIL_PASS not set");
+      return;
+    }
+
     let transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
       port: 465,
@@ -100,6 +122,9 @@ const sendBookingStatusUpdateToCustomer = async (customerEmail, customerName, em
         pass: process.env.EMAIL_PASS,
       },
     });
+
+    // Verify connection
+    await transporter.verify();
 
     const formattedDate = new Date(bookingDetails.date).toLocaleDateString('en-US', {
       weekday: 'long',
@@ -333,9 +358,16 @@ const sendBookingStatusUpdateToCustomer = async (customerEmail, customerName, em
       `,
     });
     
-    console.log("Booking status update email sent to customer:", info.messageId);
+    console.log("✅ Booking status update email sent to customer:", info.messageId);
+    console.log("   Customer Email:", customerEmail);
   } catch (error) {
-    console.error("Error sending booking status update email to customer:", error);
+    console.error("❌ Error sending booking status update email to customer:", error.message);
+    console.error("   Error Details:", {
+      code: error.code,
+      command: error.command,
+      response: error.response,
+      responseCode: error.responseCode,
+    });
     // Don't throw error - status update should still succeed even if email fails
   }
 };
@@ -343,6 +375,12 @@ const sendBookingStatusUpdateToCustomer = async (customerEmail, customerName, em
 // ✅ Send Booking Cancellation Email to Employee (when customer cancels)
 const sendBookingCancellationToEmployee = async (employeeEmail, employeeName, customerName, customerEmail, bookingDetails, bookingId) => {
   try {
+    // Validate email configuration
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      console.error("Email configuration missing: EMAIL_USER or EMAIL_PASS not set");
+      return;
+    }
+
     let transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
       port: 465,
@@ -352,6 +390,9 @@ const sendBookingCancellationToEmployee = async (employeeEmail, employeeName, cu
         pass: process.env.EMAIL_PASS,
       },
     });
+
+    // Verify connection
+    await transporter.verify();
 
     const formattedDate = new Date(bookingDetails.date).toLocaleDateString('en-US', {
       weekday: 'long',
@@ -541,9 +582,16 @@ const sendBookingCancellationToEmployee = async (employeeEmail, employeeName, cu
       `,
     });
     
-    console.log("Booking cancellation email sent to employee:", info.messageId);
+    console.log("✅ Booking cancellation email sent to employee:", info.messageId);
+    console.log("   Employee Email:", employeeEmail);
   } catch (error) {
-    console.error("Error sending booking cancellation email to employee:", error);
+    console.error("❌ Error sending booking cancellation email to employee:", error.message);
+    console.error("   Error Details:", {
+      code: error.code,
+      command: error.command,
+      response: error.response,
+      responseCode: error.responseCode,
+    });
     // Don't throw error - cancellation should still succeed even if email fails
   }
 };
@@ -810,19 +858,26 @@ exports.createBooking = async (req, res) => {
 
     // Send email notification to employee
     if (employeeExists.email && customerData) {
-      await sendBookingNotificationToEmployee(
-        employeeExists.email,
-        employeeExists.name,
-        customerData.name,
-        customerData.email,
-        customerData.phone,
-        {
-          date: booking.date,
-          time: booking.time,
-          address: booking.address,
-          notes: booking.notes,
-        }
-      );
+      console.log(`[createBooking] Attempting to send email to employee: ${employeeExists.email}`);
+      try {
+        await sendBookingNotificationToEmployee(
+          employeeExists.email,
+          employeeExists.name,
+          customerData.name,
+          customerData.email,
+          customerData.phone,
+          {
+            date: booking.date,
+            time: booking.time,
+            address: booking.address,
+            notes: booking.notes,
+          }
+        );
+      } catch (emailError) {
+        console.error("[createBooking] Email sending failed, but booking was created:", emailError.message);
+      }
+    } else {
+      console.warn(`[createBooking] Email not sent - missing employee email (${employeeExists.email}) or customer data (${customerData ? 'exists' : 'missing'})`);
     }
 
     res.status(201).json({
@@ -973,19 +1028,26 @@ exports.cancelBooking = async (req, res) => {
     // The customer initiated the cancellation, so they don't need a confirmation email
     if (bookingWithDetails.employee && bookingWithDetails.employee.email && 
         bookingWithDetails.customer) {
-      await sendBookingCancellationToEmployee(
-        bookingWithDetails.employee.email,  // Send to EMPLOYEE email only
-        bookingWithDetails.employee.name,
-        bookingWithDetails.customer.name,
-        bookingWithDetails.customer.email,  // Customer email is only for reference in email content
-        {
-          date: booking.date,
-          time: booking.time,
-          address: booking.address,
-          notes: booking.notes,
-        },
-        booking._id
-      );
+      console.log(`[cancelBooking] Attempting to send cancellation email to employee: ${bookingWithDetails.employee.email}`);
+      try {
+        await sendBookingCancellationToEmployee(
+          bookingWithDetails.employee.email,  // Send to EMPLOYEE email only
+          bookingWithDetails.employee.name,
+          bookingWithDetails.customer.name,
+          bookingWithDetails.customer.email,  // Customer email is only for reference in email content
+          {
+            date: booking.date,
+            time: booking.time,
+            address: booking.address,
+            notes: booking.notes,
+          },
+          booking._id
+        );
+      } catch (emailError) {
+        console.error("[cancelBooking] Email sending failed, but booking was cancelled:", emailError.message);
+      }
+    } else {
+      console.warn(`[cancelBooking] Email not sent - missing employee email (${bookingWithDetails.employee?.email}) or customer data`);
     }
 
     // Return the updated booking in the response

@@ -547,6 +547,35 @@ mongoose
   })
   .then(() => {
     console.log("MongoDB connected");
+    
+    // Verify email configuration on startup
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      console.warn("⚠️  WARNING: Email configuration missing! EMAIL_USER or EMAIL_PASS not set in environment variables.");
+      console.warn("   Email notifications will not work until these are configured.");
+    } else {
+      console.log("✅ Email configuration found: EMAIL_USER is set");
+      // Test email connection
+      const nodemailer = require("nodemailer");
+      const testTransporter = nodemailer.createTransport({
+        host: "smtp.gmail.com",
+        port: 465,
+        secure: true,
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+      });
+      
+      testTransporter.verify((error, success) => {
+        if (error) {
+          console.error("❌ Email service connection failed:", error.message);
+          console.error("   Please check your EMAIL_USER and EMAIL_PASS environment variables.");
+        } else {
+          console.log("✅ Email service ready - SMTP connection verified");
+        }
+      });
+    }
+    
     // Start server only after MongoDB connection is established
     const PORT = process.env.PORT || 5000;
     server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
