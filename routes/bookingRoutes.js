@@ -11,11 +11,15 @@ const {
   updateBookingStatus,
   invoice,
   getBookedSlots,
+  testEmail,
 } = require("../controllers/bookingController");
 
 // POST: Create a booking
 router.post("/", createBooking);
 router.put("/bookings/:bookingId/status", updateBookingStatus);
+
+// GET: Test email configuration (for debugging)
+router.post("/test-email", testEmail);
 
 // GET: Get booked slots for an employee on a specific date
 router.get("/booked-slots", getBookedSlots);

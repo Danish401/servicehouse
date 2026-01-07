@@ -7,6 +7,84 @@ const Booking = require("../models/Booking");
 const Employee = require("../models/Employee");
 const Customer = require("../models/User");
 
+// ✅ Test Email Configuration Endpoint
+exports.testEmail = async (req, res) => {
+  try {
+    // Check if email configuration exists
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      return res.status(500).json({
+        success: false,
+        message: "Email configuration missing",
+        details: {
+          EMAIL_USER: process.env.EMAIL_USER ? "✅ Set" : "❌ Missing",
+          EMAIL_PASS: process.env.EMAIL_PASS ? "✅ Set" : "❌ Missing",
+        },
+        instruction: "Please set EMAIL_USER and EMAIL_PASS in Render.com environment variables",
+      });
+    }
+
+    // Test connection
+    const transporter = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    // Verify connection
+    await transporter.verify();
+
+    // Try sending a test email
+    const testEmail = req.body.testEmail || process.env.EMAIL_USER;
+    const info = await transporter.sendMail({
+      from: `"House Service Support Team" <${process.env.EMAIL_USER}>`,
+      to: testEmail,
+      subject: "Test Email - Email Service Working!",
+      text: "This is a test email. Your email service is configured correctly!",
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+          <h2 style="color: #4caf50;">✅ Email Service Test Successful!</h2>
+          <p>Your email service is configured correctly and working.</p>
+          <p>You can now receive booking notifications and cancellation emails.</p>
+        </div>
+      `,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Email service is working correctly!",
+      details: {
+        emailUser: process.env.EMAIL_USER,
+        testEmailSentTo: testEmail,
+        messageId: info.messageId,
+        connectionStatus: "Verified",
+      },
+    });
+  } catch (error) {
+    console.error("Email test failed:", error);
+    res.status(500).json({
+      success: false,
+      message: "Email test failed",
+      error: error.message,
+      details: {
+        code: error.code,
+        command: error.command,
+        response: error.response,
+        responseCode: error.responseCode,
+      },
+      troubleshooting: {
+        step1: "Check if EMAIL_USER and EMAIL_PASS are set in Render.com",
+        step2: "Verify EMAIL_PASS is a Gmail App Password (not regular password)",
+        step3: "Ensure 2-Step Verification is enabled on Gmail account",
+        step4: "Check Render logs for more details",
+      },
+    });
+  }
+};
+
 // ✅ Send Booking Notification Email to Employee
 const sendBookingNotificationToEmployee = async (employeeEmail, employeeName, customerName, customerEmail, customerPhone, bookingDetails) => {
   try {
