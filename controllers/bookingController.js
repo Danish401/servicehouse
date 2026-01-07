@@ -107,7 +107,8 @@ const sendBookingNotificationToEmployee = async (employeeEmail, employeeName, cu
     });
 
     // Verify connection
-    await transporter.verify();
+    // Connection verification removed - causes timeout on Render.com
+    // Emails will be sent directly without verification
 
     const formattedDate = new Date(bookingDetails.date).toLocaleDateString('en-US', {
       weekday: 'long',
@@ -204,7 +205,8 @@ const sendBookingStatusUpdateToCustomer = async (customerEmail, customerName, em
     });
 
     // Verify connection
-    await transporter.verify();
+    // Connection verification removed - causes timeout on Render.com
+    // Emails will be sent directly without verification
 
     const formattedDate = new Date(bookingDetails.date).toLocaleDateString('en-US', {
       weekday: 'long',
@@ -472,7 +474,8 @@ const sendBookingCancellationToEmployee = async (employeeEmail, employeeName, cu
     });
 
     // Verify connection
-    await transporter.verify();
+    // Connection verification removed - causes timeout on Render.com
+    // Emails will be sent directly without verification
 
     const formattedDate = new Date(bookingDetails.date).toLocaleDateString('en-US', {
       weekday: 'long',
